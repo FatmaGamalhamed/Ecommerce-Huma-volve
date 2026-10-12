@@ -1,5 +1,5 @@
-
 import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   final Dio _dio = Dio(
@@ -28,10 +28,18 @@ class ApiService {
       final token = response.data['access_token'];
 
       if (token == null) {
-        throw Exception('Access token was not returned by the API.');
+        throw Exception(
+          'Access token was not returned by the API.',
+        );
       }
 
-      return token as String;
+      final accessToken = token as String;
+
+      // Save the token so it can be restored after refresh.
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('access_token', accessToken);
+
+      return accessToken;
     } on DioException catch (e) {
       print('LOGIN STATUS: ${e.response?.statusCode}');
       print('LOGIN DETAILS: ${e.response?.data}');
@@ -59,5 +67,17 @@ class ApiService {
       print('REGISTER DETAILS: ${e.response?.data}');
       rethrow;
     }
+  }
+
+  // Retrieve the saved token.
+  Future<String?> getSavedToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('access_token');
+  }
+
+  // Clear the saved token when the user logs out.
+  Future<void> logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('access_token');
   }
 }
