@@ -12,6 +12,7 @@ class ApiService {
     ),
   );
 
+  // Login
   Future<String> login({
     required String email,
     required String password,
@@ -35,7 +36,6 @@ class ApiService {
 
       final accessToken = token as String;
 
-      // Save the token so it can be restored after refresh.
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('access_token', accessToken);
 
@@ -47,6 +47,7 @@ class ApiService {
     }
   }
 
+  // Register
   Future<void> register({
     required String name,
     required String email,
@@ -69,13 +70,25 @@ class ApiService {
     }
   }
 
-  // Retrieve the saved token.
+  // Get products
+  Future<List<dynamic>> getProducts() async {
+    try {
+      final response = await _dio.get('/products/');
+      return response.data as List<dynamic>;
+    } on DioException catch (e) {
+      print('PRODUCTS STATUS: ${e.response?.statusCode}');
+      print('PRODUCTS DETAILS: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
+  // Retrieve saved token
   Future<String?> getSavedToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('access_token');
   }
 
-  // Clear the saved token when the user logs out.
+  // Logout
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('access_token');
