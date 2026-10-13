@@ -1,18 +1,29 @@
+
 import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import '../storage/secure_storage_service.dart';
 
 class ApiService {
-  final Dio _dio = Dio(
-    BaseOptions(
-      baseUrl: 'https://api.escuelajs.co/api/v1',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    ),
-  );
+  ApiService({
+    Dio? dio,
+    SecureStorageService? secureStorage,
+  })  : _dio = dio ??
+            Dio(
+              BaseOptions(
+                baseUrl: 'https://api.escuelajs.co/api/v1',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                },
+                connectTimeout: const Duration(seconds: 15),
+                receiveTimeout: const Duration(seconds: 15),
+              ),
+            ),
+        _secureStorage = secureStorage ?? SecureStorageService();
 
-  // Login
+  final Dio _dio;
+  final SecureStorageService _secureStorage;
+
   Future<String> login({
     required String email,
     required String password,
@@ -26,28 +37,19 @@ class ApiService {
         },
       );
 
-      final token = response.data['access_token'];
-
-      if (token == null) {
-        throw Exception(
-          'Access token was not returned by the API.',
-        );
+      final data = response.data;
+      if (data is! Map || data['access_token'] is! String) {
+        throw Exception('Invalid login response from server.');
       }
 
-      final accessToken = token as String;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('access_token', accessToken);
-
-      return accessToken;
+      final token = data['access_token'] as String;
+      await _secureStorage.saveToken(token);
+      return token;
     } on DioException catch (e) {
-      print('LOGIN STATUS: ${e.response?.statusCode}');
-      print('LOGIN DETAILS: ${e.response?.data}');
-      rethrow;
+      throw Exception(_getErrorMessage(e));
     }
   }
 
-  // Register
   Future<void> register({
     required String name,
     required String email,
@@ -64,33 +66,51 @@ class ApiService {
         },
       );
     } on DioException catch (e) {
-      print('REGISTER STATUS: ${e.response?.statusCode}');
-      print('REGISTER DETAILS: ${e.response?.data}');
-      rethrow;
+      throw Exception(_getErrorMessage(e));
     }
   }
 
-  // Get products
   Future<List<dynamic>> getProducts() async {
     try {
       final response = await _dio.get('/products/');
+      if (response.data is! List) {
+        throw Exception('Invalid products response from server.');
+      }
       return response.data as List<dynamic>;
     } on DioException catch (e) {
-      print('PRODUCTS STATUS: ${e.response?.statusCode}');
-      print('PRODUCTS DETAILS: ${e.response?.data}');
-      rethrow;
+      throw Exception(_getErrorMessage(e));
     }
   }
 
-  // Retrieve saved token
-  Future<String?> getSavedToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('access_token');
+  Future<String?> getSavedToken() {
+    return _secureStorage.getToken();
   }
 
-  // Logout
-  Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('access_token');
+  Future<void> logout() {
+    return _secureStorage.deleteToken();
+  }
+
+  String _getErrorMessage(DioException error) {
+    final statusCode = error.response?.statusCode;
+
+    if (error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.connectionError) {
+      return 'Connection problem. Check your internet and try again.';
+    }
+
+    if (statusCode == 401) {
+      return 'Invalid email or password.';
+    }
+
+    if (statusCode == 400 || statusCode == 409) {
+      return 'Please check the information you entered.';
+    }
+
+    if (statusCode != null && statusCode >= 500) {
+      return 'Server error. Please try again later.';
+    }
+
+    return 'Something went wrong. Please try again.';
   }
 }
