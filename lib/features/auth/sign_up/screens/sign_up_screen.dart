@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/widgets/custom_text_field.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../../../core/theme.dart';
-import '../../../../core/services/api_service.dart';
+import '../../data/repositories/auth_repository_impl.dart';
+import '../../domain/usecases/register_usecase.dart';
 import '../../login/screens/login_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -47,7 +48,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await ApiService().register(
+      await RegisterUseCase(AuthRepositoryImpl()).call(
         name: nameController.text.trim(),
         email: emailController.text.trim(),
         password: passwordController.text,
